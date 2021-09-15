@@ -1,0 +1,270 @@
+---
+title: "MLB-Analysis SQL"
+author: "Rishi Bhuva"
+date: "11/16/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+My first rule of business, was to install the proper packages used in order to run SQL on R. For this, I had to install RSQLite package and the DBI package. I then specified my working directory using the setwd() function and then used dbConnect to apply SQL within the downloaded database, "lahman2013.sqlite" I then enabled the use of listing remote tables using dbListTables and then enabled the list of the field names within this table using dbListFields and enabled a connection with the "Master" table. 
+
+This website was also very useful when working on this project:
+
+http://www.seanlahman.com/files/database/readme2013.txt
+
+```{r}
+library(RSQLite)
+library(DBI)
+library(reshape2)
+
+
+setwd("~/Downloads")
+db <- dbConnect(SQLite(), "lahman2013.sqlite")
+dbListTables(db)
+dbListFields(db, "Master")
+```
+
+
+```{r}
+# Question 5
+
+# What team won the World Series in 2010?
+
+dbGetQuery(db, "SELECT yearID, teamID,name, lgID, divID, WSWin 
+           FROM Teams WHERE yearID = 2010 AND WSWin = 'Y'")
+```
+
+In order to figure out which team won the world series in 2010, I realized I had to use the dbGetQuery() function. This function essentially enables us to select queries from within the database. Therefore, my logic toward this question was for me to select from a table that included the following criteria: year, teamID (abbreviation of the team), team name, league, division and World Series Win. After browsing the database file (the link posted above), I noticed that the Teams table included each of these. Therefore, I simply used the proper SQL commands to select each of these crtieria from the Teams table and set the conditions as to when the yearID = 2010 and where the WSWin was a 'Y.' This way, I would be able to get a single row with the World Series Winner of 2010. After running this command, we can see that the SF Giants won in 2010 and were apart of the NL League and the W Division.
+
+```{r}
+
+# Question 6
+
+# What team lost the world series each year?
+
+dbGetQuery(db, "SELECT yearID, teamID, name, lgID, divID, WSWin FROM Teams WHERE WSWin = 'N' AND DivWin = 'Y' and LgWin = 'Y' GROUP BY yearID ORDER BY yearID DESC")
+
+
+```
+
+My logic for this question followed the same logic used for Question 5, although this time I would need to figure out which team lost the World Series and rather than for a single year, I would need to incorporate each year. I used dbGetQuery() and selected the same criteria required (yearID, teamID, name, lgID, divID and WSWin) also using the same table (Teams) After I selected each of these, I realized that within the database, per year, there is one 'Y' for WSWin while the rest were 'N.' Therefore, if I just set the condition to WSWin = 'N' I would get multiple teams per year. I then knew that in order to reach the world series, the team would have to win the division and the league. I then set the conditions to if DivWin = 'Y', lgWin = 'Y' and then WSWin = 'N' in order to establish which team actually made the World Series and then lost. I then used GROUP BY year in order to group these rows with these conditions by year and then ordered them by year for us to see in chronological order which team lost the World Series. I realized also that once I ran this, I would get a table that would start with 1969 and ascend until 2013. I wanted the opposite of this, I wanted the table to start froom 2013 and descend, which is why I added the DESC afterwards. 
+
+```{r}
+
+# Question 7
+
+# Compute the table of World Series Winners by year
+
+dbGetQuery(db, "SELECT yearID, teamID, lgID, divID, WSWin FROM Teams WHERE WSWin = 'Y' AND divID != 'NULL' ORDER BY yearID DESC;")
+
+```
+
+I followed the same logic as question 6 for this question, although this question was a bit more simple because it is easier extracting the winners of the World Series rather than the loser, as one team wins while the rest don't. Therefore, I used the same criteria and the same table (Teams). I set the condition as where WSWin = 'Y', although after I ran that I noticed that the early stages of the MLB did not include a divID, therefore I believe from 1871 - 1968 all the divID were NA. As the question asked for us to include the division ID, I thought it would be cleaner for me to exclude all those that had an NA for divID. Therefore, I added another condition where only include the rows where divID does not equal to NULL. In the ordered it by year and included it to descend for mere simplicity purposes.
+
+
+
+```{r}
+
+# Question 14
+
+# Which player has hit the most Homeruns? Show the number per year
+
+dbGetQuery(db, "SELECT playerID, yearID, MAX(HR) FROM Batting GROUP BY yearID ORDER BY yearID DESC")
+
+```
+
+For this question, the information I needed was essentially the player, the year and the number of homeruns per player. As I explored the database file, I realized that these fields were avaliable within the Batting table. Therefore, I selected the playerID, yearID and I included the MAX() for the HR field in order to find the max amount of homeruns. I then used GROUP BY per year in order to group what I selected within Batting per year. After this, I would get the year corresponding to the player who hit the max amount of homeruns. I then used ORDER BY yearID to get the years into chronological order and then I added the DESC for the years to start at 2013 and descend. As we can see, davisch02 (Chris Davis) had the highest amount of homeruns within 2013 and just through a quick search from this table, we can see bondsba01 (Barry Bonds) having the highest number of homeruns at 73 in the year 2001.
+
+
+```{r}
+
+# Question 15
+
+# Has the Distribution of Homeruns for players increased over the years?
+
+# dbGetQuery(db, "SELECT yearID, HR FROM Batting")
+
+HomeRunData = dbGetQuery(db, "SELECT yearID, HR FROM Batting")
+
+library(ggplot2)
+
+ggplot(HomeRunData, aes(x=yearID, y = HR)) + geom_line() + geom_smooth() + labs(x = "Year", y = "HomeRuns", title = "Distribution of Homeruns Throughout the Years")
+
+```
+
+When I first read this question, I was quite intrigued as this question asks about a distrubtion between two variables. I immediately knew that the best way to present this distrubtion would be to somehow incorporate a plot between these two variables (Year and Homerun) My first action was to determine which table I would easily be able to find the year along with the number of homeruns for that year. After doing some research on the database file, I realized that I could easily extract the year and number of homeruns from the Batting table. The interesting part to this question, was now I was going to have to somewhat transition from SQL to R. Therefore, I first used the SQL commands in order to select the year and # of homeruns from batting. I then assigned my dbGetQuery() command to a variable. On console, just to double check I used the class() function in order to tell me the class to see if it was plottable and it the class function returned a data frame, therefore this would be doable to plot. I then used ggplot() to establish a line graph showing the distribution of homeruns throughout the year. As we can see from the graph, the distrubtion of homeruns throughout the years has increased and we can even see the smooth line in an upward trend as well, showing that the distrubtion of homeruns has increased over the years.
+
+
+```{r}
+
+# Question 3
+
+# How many players became managers
+
+dbGetQuery(db, "SELECT COUNT(*) playerID, plyrMgr FROM Managers GROUP BY plyrMgr = 'Y'")
+
+
+
+```
+When I read this question, I immediately began to surf the database file to see which fields I would have to extract and from which table would those fields be located. I saw that the Managers table included the playerID and plyrMgr which was denoted by 'Y' if a player was a manager or 'N' if a player was not a manager. My logic when it came to this question was to count which players had the 'Y' in their plyrMgr column. To do this, I used the COUNT(*) to count all the playerIDs from the table and used a condition to count the number of plyMgr as 'Y' and as 'N'.  As we can see, 645 players are players that became managers while 2,692 are players that have no became a manager.
+
+```{r}
+
+# Question 18
+
+
+# What's the distrubtion of double plays/triple plays?
+
+# dbGetQuery(db, "SELECT yearID, DP, TP FROM FieldingPost")
+
+
+
+DPTP = dbGetQuery(db, "SELECT yearID, DP, TP FROM FieldingPost")
+
+
+
+library(ggplot2)
+
+ggplot(DPTP, aes(x = yearID, y = DP)) + geom_line() + geom_smooth(method = "lm") + labs(x = "Year", y = "Double Plays", title = "Distribution of Double Plays throughout the Years")
+
+ # ggplot(DPTP, aes(x = yearID, y = TP)) + geom_line() + labs(x = "Year", y = "Triple Plays", title = "Distribution of Triple Plays throughout the Years")
+
+```
+
+My logic when approaching 18 was very similar to that of question 15. I knew that because the question was asking me for a distribution, I had to incorporate some plots within my answer. I began to scavenge through the database file and came across the FieldingPost table. This table includes the fields DP (double play) and TP (triple play) and as this question was asking what's the distrubtion of them, I decided to plot each against year. Although, after checking out the data, I noticed that the triple play data within this table seemed to be a little off... I noticed that the highest would be one, although with a google search of triple plays I could tell that this dataset had no properly incorporated the correct amount of triple plays within the MLB. Therefore, the TP plot against year can be seen as inaccurate, which is why I have commented it out and not shown the graph. The DP data does seem quite accurate, and according to the plot above, we can see a general increase in double plays throughout the year. As I did add a smooth line to this graph, we can see that the line doesn't show a proper upward trend indicating that the distrubtion of double plays is not necessarily in an upward trend. After some more analyzing of this plot, I can see that between the years there are a lot of fluctuations and this is possibly why there isn't an upward trend. The max's for double plays can be seen toward the later years, although if we look closely we can also see there are lows within those years as well. Therefore, the distrubtion of double plays hasn't necessarily increased over the years, due to the fluctuation within each year. 
+
+
+
+```{r}
+# Question 17
+
+# Are Certain Baseball Parks better for scoring homeruns?
+
+# dbGetQuery(db, "SELECT HR FROM Teams")
+avgHR = dbGetQuery(db, "SELECT HR FROM Teams")
+summary(avgHR)
+
+
+dbGetQuery(db, "SELECT DISTINCT yearID, HR, park FROM Teams WHERE HR > 148 GROUP BY park ORDER BY yearID DESC")
+
+```
+I feel like I answered Question 17 in a non-traditional way, although it seems to work. I found that the Teams table contains homeruns along with the park name. What I did first was select the homeruns from the table and use the summary() function to get a summary of the homeruns within this table. This summary claims that the 3rd Quartile is 148 HR, meaning that the highest 25% of homeruns will be greater than 148. I applied this logic and created another Query, where I selected the year, HR, park from the Teams table and only selected HR > 148. I then grouped it by parks in order to see which parks acquire these higher-than-normal homerun statistics. I then ordered by year in order to see a good breakdown throughout the years of homeruns within the parks. Through this, we can see these the parks that have a high number of homeruns.
+
+
+
+
+
+```{r}
+# Question 1
+
+# What years does the data cover? Are there data for each of these years?
+
+dbGetQuery(db, "SELECT min(yearID), max(yearID) from Pitching")
+
+
+
+```
+
+This question seemed quite simple to me, what I did was essentially search for a table that included a yearID. In this case, I used Pitching. I then selected the minimum year and the maximum year provided within the yearID. I get 1871 for the minumum year and 2013 for the maximum year. This shows that data ranges from 1871 to 2013, as we can see from the years we have been extracting from other tables, this proves accurate. I believe that there is data for a certain specific field from 1871-2013, although not all. For example, divID is not available until 1969. Therefore, divID does not have data until then. Although for the most part, there should be at least one specific data (probably more) for each year from 1871 - 2013.
+
+
+```{r}
+
+# Question 22
+
+# How are wins related to hits, strikeouts, walks, homeruns and earned runs
+
+# dbGetQuery(db, "SELECT W, SO, BB, H, ER, HR FROM Pitching WHERE W!= 0")
+
+HitData = dbGetQuery(db, "SELECT W, SO, BB, H, ER, HR FROM Pitching WHERE W != 0")
+
+library(ggplot2)
+
+HitWin = ggplot(HitData, aes(x=(W), y =H))
+HitWin + aes() + geom_point() + geom_smooth(method = "lm") + theme_bw() + labs(x = "Wins", y = "Hits", title = "Relationship Between Wins and Hits")
+
+SOWin = ggplot(HitData, aes(x=(W), y =SO))
+SOWin + aes() + geom_point() + geom_smooth(method = "lm") + theme_bw() + labs(x = "Wins", y = "Strike-Outs", title = "Relationship Between Wins and Strikeouts")
+
+WWin = ggplot(HitData, aes(x=(W), y =BB))
+WWin + aes() + geom_point() + geom_smooth(method = "lm") + theme_bw() + labs(x = "Wins", y = "Walks", title = "Relationship Between Wins and Walks")
+
+HRWin = ggplot(HitData, aes(x=(W), y =HR))
+HRWin + aes() + geom_point() + geom_smooth(method = "lm") + theme_bw() + labs(x = "Wins", y = "HomeRuns", title = "Relationship Between Wins and HomeRuns")
+
+ERWin = ggplot(HitData, aes(x=(W), y =ER))
+ERWin + aes() + geom_point() + geom_smooth(method = "lm") + theme_bw() + labs(x = "Wins", y = "Earned Runs", title = "Relationship Between Wins and Earned Runs")
+
+
+```
+
+This question asks to see the relationship between hits, strikeouts, walks, homeruns and earned runs.I knew that the best way to portray this relationship was to individually plot Wins with the other respected variables (hits, strikeouts, walks, homeruns and earned runs) I first figured out that Pitching would be the most ideal table to select from as it contained all the variables I needed. I then set a condition to cut out any NA Wins or any Wins that were 0 as they were considered a lost, not a win. I then established a variable to this query and made sure that it was a dataframe by checking the class() within my console. Afterwards, I decided to plot Wins against each variable. The first from wins and hits, the second from wins and strikeouts, the third from wins and walks, fourth from wins and homeruns and fifth from wins and earned runs. Throughout each graph, we can see a positive correlation between wins and each respected variable. The smooth line also helps satisfy this claim as the smooth line is in an upward direction for each graph. Therefore, wins have a positive correlation when it comes to hits, strikeouts, walks, homeruns and earned runs.
+
+
+
+
+
+
+
+
+```{r}
+
+# Question 9
+
+# Do you see a relationship between games won in a season and winning the World Series?
+
+# dbGetQuery(db, "SELECT yearID, W, WSWin FROM Teams WHERE WSWin != 'NULL'")
+
+WSWinData = dbGetQuery(db, "SELECT yearID, W, WSWin FROM Teams WHERE WSWin!= 'NULL'")
+
+library(ggplot2)
+
+ggplot(data = WSWinData, aes(x = WSWin, y = W)) +  geom_boxplot()
+```
+
+For this question, I immedediately looked at the Teams table and selected the year, the number of wins, and world series winner denoted by 'Y' or 'N'. I then established a boxplot between the number of wins that had not won a World Series (N) vs the number of wins that had a won a world series (Y), as we can see from this boxplot, there are more teams that have not won a World Series, therefore more data to plot within N, although we can see that on average, teams that have won the world series tend to have a higher number of wins in a season.
+
+
+```{r}
+
+# Has attendance increased over the years in baseball?
+
+# Does attendance effect the number of wins in baseball?
+
+
+attendancedub = dbGetQuery(db, "SELECT yearID, teamID, name, G, GHome, max(W) AS Wins, max(attendance) AS Attendance from Teams  WHERE Ghome != 'NULL' AND attendance != 'NULL' GROUP BY yearID ")
+
+library(ggplot2)
+
+ggplot(data = attendancedub, aes(x = yearID, y = Attendance)) + geom_point() + geom_smooth(method = "lm") + theme_bw() + labs(x = "Years", y = "# of Attendance", title = "Distribution of Attendance throughout the Years")
+
+
+ggplot(data = attendancedub, aes(x = Wins, y = Attendance)) + geom_point() + geom_smooth(method = "lm") + theme_bw() + labs(x = "Wins", y = "# of Attendance", title = "Relationship Between Wins and Attendance")
+
+```
+
+This was a question I posed for myself, as the fields within the dataset seemed interesting and I wanted to see some sort of relationship. I was looking for whether attendance as increased over the years in baseball and if attendance effects the number of wins in baseball. What I did first, was extract fields from the Teams table. The fields that I extracted were the year, team, name, games played, games at home played, the max amount of wins and the highest number of attendance. I then applied conditions that take out the 'NULL' of the data and then I used GROUP BY yearID to see these variables grouped by the year. I then plotted attendance by year, and as we can see attendance did increase as the years went on. The next plot shows the correlation of attendance and wins, and as we can see through the plot, there really is no correlation. I think one thing that would help me properly extract this data and get a more proper answer would be if any field within the table included games won at home, therefore I would properly be able to tell if "home-court" advantage would be a thing. Although, as we can see with the second plot, the number of wins and attendance don't show any relationship. 
+
+```{r}
+# Question 23
+
+# What are the top ten college producers of MLB players? How many colleges are represented in the database
+
+dbGetQuery(db, "SELECT schoolName, COUNT(SPName.schoolID) AS NumCount FROM Schools AS SName LEFT JOIN (SELECT schoolID FROM SchoolsPlayers) AS SPName ON SName.schoolID = SPName.schoolID GROUP BY SPName.schoolID ORDER BY NumCount DESC LIMIT 10")
+
+
+# dbGetQuery(db, "SELECT DISTINCT schoolname FROM Schools")
+
+dbGetQuery(db, "SELECT DISTINCT COUNT(schoolname) FROM Schools")
+```
+
+This question was quite interesting, what I did was first find the tables that include schoolname, which I found from Schools. I then found schoolID from SchoolsPlayers which tell us the schoolID in regard to the player. After this, I established a count for how many schoolID's occur for each player and then correspond them to schoolName. I then used GROUP BY schoolID from SchoolsPlayers and ORDER it by the count of schools from the table SchoolsPlayers. I then used the LIMIT command to enable the top 10 colleges that produce MLB players, as we can see USC is the top with 102 players. After this, I wanted to count how many colleges are within this database, I did this by using SELECT DISTINCT (which does not give any repeated queries) of the schoolname field from the Schools table. This count gives us 749 colleges. Above the count code, I have the code without the COUNT command, this commented code gives us a list of all of these colleges, I decided to comment it out simply because of the extensive list it would produce. 
+
